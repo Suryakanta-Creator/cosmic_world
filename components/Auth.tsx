@@ -46,6 +46,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           password,
           options: {
             data: { name: name.trim() },
+            emailRedirectTo: window.location.origin,
           },
         });
 
