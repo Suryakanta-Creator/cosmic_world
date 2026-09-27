@@ -136,7 +136,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, isOpen, onClose, onL
                           <ShieldAlert size={18} className="text-red-400" />
                           <div>
                               <p className="text-sm font-medium text-white">Impact Risks</p>
-                              <p className="text-xs text-gray-500">Notify for asteroids with >1% impact probability</p>
+                              <p className="text-xs text-gray-500">Notify for asteroids with &gt;1% impact probability</p>
                           </div>
                       </div>
                       <button 
