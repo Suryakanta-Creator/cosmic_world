@@ -15,6 +15,7 @@ import { UserMonitoring } from './components/UserMonitoring';
 import { ChatInterface } from './components/ChatInterface';
 import { AdminPanel } from './components/AdminPanel';
 import { AnimatePresence, motion, useScroll, useTransform } from 'framer-motion';
+import { supabase, supabaseConfigured, toAppUser } from './services/supabase';
 
 export default function App() {
   const [user, setUser] = useState<any>(null);
@@ -35,20 +36,39 @@ export default function App() {
   const backgroundY = useTransform(scrollY, [0, 5000], ["-25%", "0%"]);
 
   useEffect(() => {
-    // Check local storage for persisted session
-    const savedUser = localStorage.getItem('space_user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
+    if (!supabaseConfigured || !supabase) {
+      setCheckingAuth(false);
+      return;
     }
-    setCheckingAuth(false);
+
+    let mounted = true;
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      setUser(data.session?.user ? toAppUser(data.session.user) : null);
+      setCheckingAuth(false);
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+      setUser(session?.user ? toAppUser(session.user) : null);
+      setCheckingAuth(false);
+    });
+
+    return () => {
+      mounted = false;
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   const handleLogin = (userData: any) => {
     setUser(userData);
-    localStorage.setItem('space_user', JSON.stringify(userData));
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
     setUser(null);
     setIsDashboardOpen(false);
     setIsAsteroidPageOpen(false);
@@ -57,7 +77,6 @@ export default function App() {
     setIsMonitoringPageOpen(false);
     setIsChatOpen(false);
     setIsAdminPanelOpen(false);
-    localStorage.removeItem('space_user');
   };
 
   if (checkingAuth) return null;
