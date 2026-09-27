@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Eye, EyeOff, ArrowRight, AlertCircle, CheckCircle, UserPlus, LogIn, User } from 'lucide-react';
-import { db } from '../services/db';
+import { supabase, supabaseConfigured, toAppUser } from '../services/supabase';
 
 interface AuthProps {
   onLogin: (user: any) => void;
@@ -22,18 +22,45 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     setIsLoading(true);
     setError('');
     setSuccess('');
-    
+
+    if (!supabaseConfigured || !supabase) {
+      setError('Authentication is not configured yet. Add the Supabase environment variables in Vercel.');
+      setIsLoading(false);
+      return;
+    }
+
     try {
       if (mode === 'login') {
-        const user = await db.login(email, password);
-        onLogin(user);
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
+
+        if (signInError) throw signInError;
+        if (!data.user) throw new Error('No user session was returned.');
+
+        onLogin(toAppUser(data.user));
       } else {
-        const newUser = await db.register(name, email, password);
-        setSuccess('Registration successful! Logging in...');
-        setTimeout(() => onLogin(newUser), 1000);
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: {
+            data: { name: name.trim() },
+          },
+        });
+
+        if (signUpError) throw signUpError;
+
+        if (data.session && data.user) {
+          setSuccess('Registration successful. Welcome aboard!');
+          onLogin(toAppUser(data.user));
+        } else {
+          setSuccess('Registration successful. Check your email to confirm your account, then sign in.');
+          setMode('login');
+        }
       }
     } catch (err: any) {
-      setError(err.message || 'Authentication failed');
+      setError(err?.message || 'Authentication failed');
     } finally {
       setIsLoading(false);
     }
@@ -49,13 +76,6 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
       joinedAt: new Date().toISOString()
     };
     onLogin(guestUser);
-  };
-
-  const fillAdminCreds = () => {
-    setEmail('admin@cosmicwatch.com');
-    setPassword('admin123');
-    setMode('login');
-    setError('');
   };
 
   return (
@@ -226,22 +246,14 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 <div className="flex-grow border-t border-white/10"></div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-                <button 
-                    onClick={handleGuestLogin}
-                    className="flex items-center justify-center gap-2 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-colors text-sm text-gray-300"
-                >
-                    <User size={16} />
-                    Guest Access
-                </button>
-                <button 
-                    onClick={fillAdminCreds}
-                    className="flex items-center justify-center gap-2 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-colors text-sm text-gray-300"
-                >
-                    <div className="w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-[8px] font-bold text-black">A</div>
-                    Admin Demo
-                </button>
-            </div>
+            <button 
+                type="button"
+                onClick={handleGuestLogin}
+                className="w-full flex items-center justify-center gap-2 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-colors text-sm text-gray-300"
+            >
+                <User size={16} />
+                Continue as Guest
+            </button>
           </div>
         </div>
       </motion.div>
